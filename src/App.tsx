@@ -1037,6 +1037,7 @@ export default function MapPosterGenerator() {
         show_coords: showCoords,
         show_city: showCity,
         show_country: showCountry,
+        show_pois: false,
       };
       logClientTiming("processing", "prepareRenderConfig", {
         total: performance.now() - configStart,

@@ -101,6 +101,7 @@ pub fn render_map(request_json: &str) -> RenderResult {
         show_coords: true,
         show_city: true,
         show_country: true,
+        show_pois: true,
     };
 
     render_map_internal(request)
@@ -136,6 +137,9 @@ pub struct BinaryRenderConfig {
     pub show_city: bool,
     #[serde(default = "types::default_true")]
     pub show_country: bool,
+    // POI 显示开关
+    #[serde(default)]
+    pub show_pois: bool,
 }
 
 /// 主渲染函数 (二进制直读版本)
@@ -325,23 +329,25 @@ fn render_map_binary_internal(
     log(&format!("  Default: {:.2}ms", total_timings[5]));
 
     // 投影并绘制 POI
-    if let Some(pois_data) = &config.pois {
-        if !pois_data.is_empty() && pois_data[0] as usize > 0 {
-            let mut projected_pois = pois_data.clone();
-            let poi_count = projected_pois[0] as usize;
-            for i in 0..poi_count {
-                let offset = 1 + i * 2;
-                let (proj_lon, proj_lat) = projection::project_point(
-                    projected_pois[offset],     // lon
-                    projected_pois[offset + 1], // lat
-                );
-                projected_pois[offset] = proj_lon;
-                projected_pois[offset + 1] = proj_lat;
-            }
+    if config.show_pois {
+        if let Some(pois_data) = &config.pois {
+            if !pois_data.is_empty() && pois_data[0] as usize > 0 {
+                let mut projected_pois = pois_data.clone();
+                let poi_count = projected_pois[0] as usize;
+                for i in 0..poi_count {
+                    let offset = 1 + i * 2;
+                    let (proj_lon, proj_lat) = projection::project_point(
+                        projected_pois[offset],     // lon
+                        projected_pois[offset + 1], // lat
+                    );
+                    projected_pois[offset] = proj_lon;
+                    projected_pois[offset + 1] = proj_lat;
+                }
 
-            time("render_map_bin: draw_pois");
-            renderer.draw_pois_bin(&projected_pois);
-            time_end("render_map_bin: draw_pois");
+                time("render_map_bin: draw_pois");
+                renderer.draw_pois_bin(&projected_pois);
+                time_end("render_map_bin: draw_pois");
+            }
         }
     }
 
@@ -472,7 +478,7 @@ fn render_map_internal(mut request: RenderRequest) -> RenderResult {
     time_end("render_map: draw_roads");
 
     // 绘制 POI
-    if !request.pois.is_empty() {
+    if request.show_pois && !request.pois.is_empty() {
         time("render_map: draw_pois");
         renderer.draw_pois(&request.pois);
         time_end("render_map: draw_pois");
