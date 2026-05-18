@@ -30,6 +30,7 @@ interface MapPreviewProps {
   showCity: boolean;
   showCountry: boolean;
   previewRef: React.RefObject<HTMLDivElement | null>;
+  myLocation?: { lat: number; lng: number } | null;
 }
 
 export function MapPreview({
@@ -44,6 +45,7 @@ export function MapPreview({
   showCity,
   showCountry,
   previewRef,
+  myLocation,
 }: MapPreviewProps) {
   const previewTheme = useMemo(
     () => ({
@@ -121,6 +123,7 @@ export function MapPreview({
             showCity={showCity}
             showCountry={showCountry}
             showCoords={showCoords}
+            myLocation={myLocation}
           />
         </div>
       </div>

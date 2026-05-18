@@ -261,6 +261,10 @@ pub struct RenderRequest {
     pub show_city: bool,
     #[serde(default = "default_true")]
     pub show_country: bool,
+
+    // POI 显示开关
+    #[serde(default)]
+    pub show_pois: bool,
 }
 
 pub fn default_road_width_boost() -> f32 {
