@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useDeferredValue } from "react";
+import { useState, useRef, useEffect, useDeferredValue, useMemo } from "react";
 import { type PosterSize } from "@/components/artistic-map";
 import { Square, Smartphone, Monitor, FileImage } from "lucide-react";
 import { useLocationData } from "@/hooks/useLocationData";
@@ -23,6 +23,7 @@ import { DataSettings } from "./components/data-settings";
 import { ThemeColors } from "./components/theme-colors";
 import { FontSettings } from "./components/font-settings";
 import { TextDisplaySettings } from "./components/text-display-settings";
+import { MyLocationSettings } from "./components/my-location-settings";
 import { PosterSizeSelector } from "./components/poster-size-selector";
 import { MapPreview } from "./components/map-preview";
 import { GenerationModal } from "./components/generation-modal";
@@ -354,6 +355,21 @@ export default function MapPosterGenerator() {
   const [showCity, setShowCity] = useState(true);
   const [showCountry, setShowCountry] = useState(true);
 
+  // My Location marker state
+  const [showMyLocation, setShowMyLocation] = useState(false);
+  const [myLocationLat, setMyLocationLat] = useState("");
+  const [myLocationLng, setMyLocationLng] = useState("");
+
+  // Validated my location coordinate (memoized to avoid unstable references)
+  const myLocationCoord = useMemo(() => {
+    if (!showMyLocation || !myLocationLat || !myLocationLng) return null;
+    const lat = parseFloat(myLocationLat);
+    const lng = parseFloat(myLocationLng);
+    if (Number.isNaN(lat) || Number.isNaN(lng)) return null;
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+    return { lat, lng };
+  }, [showMyLocation, myLocationLat, myLocationLng]);
+
   // Initialize language on mount
   useEffect(() => {
     let lang: AvailableLanguageTag;
@@ -410,6 +426,9 @@ export default function MapPosterGenerator() {
       showCoords,
       showCity,
       showCountry,
+      showMyLocation,
+      myLocationLat,
+      myLocationLng,
     };
     localStorage.setItem("maptoposter_config", JSON.stringify(config));
   }, [
@@ -424,6 +443,9 @@ export default function MapPosterGenerator() {
     showCoords,
     showCity,
     showCountry,
+    showMyLocation,
+    myLocationLat,
+    myLocationLng,
   ]);
 
   useEffect(() => {
@@ -442,6 +464,9 @@ export default function MapPosterGenerator() {
         if (typeof config.showCoords === "boolean") setShowCoords(config.showCoords);
         if (typeof config.showCity === "boolean") setShowCity(config.showCity);
         if (typeof config.showCountry === "boolean") setShowCountry(config.showCountry);
+        if (typeof config.showMyLocation === "boolean") setShowMyLocation(config.showMyLocation);
+        if (config.myLocationLat) setMyLocationLat(config.myLocationLat);
+        if (config.myLocationLng) setMyLocationLng(config.myLocationLng);
 
         // Restore Location Text/Coords
         if (config.customTitle) setCustomTitle(config.customTitle);
@@ -1006,6 +1031,9 @@ export default function MapPosterGenerator() {
         frontend_scale: FRONTEND_SCALE,
         road_width_boost: isProtomaps ? 1.8 : 1.0,
         pois: Array.from(poisBin),
+        my_location: myLocationCoord
+          ? [myLocationCoord.lat, myLocationCoord.lng]
+          : undefined,
         show_coords: showCoords,
         show_city: showCity,
         show_country: showCountry,
@@ -1188,6 +1216,15 @@ export default function MapPosterGenerator() {
                 onShowCountryChange={setShowCountry}
               />
 
+              <MyLocationSettings
+                enabled={showMyLocation}
+                lat={myLocationLat}
+                lng={myLocationLng}
+                onEnabledChange={setShowMyLocation}
+                onLatChange={setMyLocationLat}
+                onLngChange={setMyLocationLng}
+              />
+
               <PosterSizeSelector
                 sizes={SIZES}
                 selectedSize={selectedSize}
@@ -1206,6 +1243,7 @@ export default function MapPosterGenerator() {
               showCity={showCity}
               showCountry={showCountry}
               previewRef={previewRef}
+              myLocation={myLocationCoord}
             />
           </div>
           <PosterGallery />

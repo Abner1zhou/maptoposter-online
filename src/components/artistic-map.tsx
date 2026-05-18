@@ -429,6 +429,7 @@ interface MapPosterPreviewProps {
   showCity?: boolean;
   showCountry?: boolean;
   showCoords?: boolean;
+  myLocation?: { lat: number; lng: number } | null;
 }
 
 export function MapPosterPreview({
@@ -452,9 +453,11 @@ export function MapPosterPreview({
   showCity,
   showCountry,
   showCoords,
+  myLocation,
 }: MapPosterPreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
+  const markerRef = useRef<maplibregl.Marker | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
   const [fontFamily, setFontFamily] = useState<string>("sans-serif");
@@ -551,6 +554,26 @@ export function MapPosterPreview({
     if (!mapRef.current || !isLoaded) return;
     applyThemePaintProperties(mapRef.current, theme);
   }, [theme, isLoaded]);
+
+  // My Location marker
+  useEffect(() => {
+    if (!mapRef.current || !isLoaded) return;
+
+    if (markerRef.current) {
+      markerRef.current.remove();
+      markerRef.current = null;
+    }
+
+    if (myLocation) {
+      const el = document.createElement("div");
+      el.style.cssText = `width: 32px; height: 32px;`;
+      el.innerHTML = `<svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" width="32" height="32"><path fill="${textColor}" d="M512 85.333333c188.501333 0 341.333333 154.325333 341.333333 344.746667 0 98.901333-46.677333 210.005333-107.264 277.034667-36.053333 39.850667-101.973333 111.786667-197.888 215.68a48.768 48.768 0 0 1-71.978666-0.341334l-11.52-12.672a30379.605333 30379.605333 0 0 0-173.994667-191.146666C223.018667 645.546667 170.666667 535.168 170.666667 430.08 170.666667 239.658667 323.498667 85.333333 512 85.333333z m0 172.373334c-94.293333 0-170.666667 77.184-170.666667 172.373333s76.373333 172.373333 170.666667 172.373333 170.666667-77.184 170.666667-172.373333-76.373333-172.373333-170.666667-172.373333z"/></svg>`;
+      const marker = new maplibregl.Marker({ element: el, anchor: "bottom" })
+        .setLngLat([myLocation.lng, myLocation.lat])
+        .addTo(mapRef.current);
+      markerRef.current = marker;
+    }
+  }, [myLocation, isLoaded, textColor]);
 
   // 位置变化：统一用 flyTo，天然有动画，不走 fitBounds
   useEffect(() => {

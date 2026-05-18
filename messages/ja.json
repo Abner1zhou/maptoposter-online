@@ -164,5 +164,11 @@
   "support_buy_me_a_coffee_desc": "クレジットカード / Apple Pay / Google Pay",
   "support_afdian": "Afdian (爱发电)",
   "support_afdian_desc": "WeChat / Alipay",
-  "star_hint": "Starをポチッと🥰目指せ{target}！"
+  "star_hint": "Starをポチッと🥰目指せ{target}！",
+  "my_location_title": "現在地",
+  "my_location_enable": "現在地をマーク",
+  "my_location_use_gps": "GPSで取得",
+  "my_location_gps_error": "位置情報を取得できません。手動で座標を入力してください。",
+  "my_location_lat": "緯度",
+  "my_location_lng": "経度"
 }

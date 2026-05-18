@@ -164,5 +164,11 @@
   "support_buy_me_a_coffee_desc": "Kreditkarte / Apple Pay / Google Pay",
   "support_afdian": "Afdian (爱发电)",
   "support_afdian_desc": "WeChat / Alipay",
-  "star_hint": "Lass 'nen Stern da 🥰 auf zu {target}!"
+  "star_hint": "Lass 'nen Stern da 🥰 auf zu {target}!",
+  "my_location_title": "Mein Standort",
+  "my_location_enable": "Standort markieren",
+  "my_location_use_gps": "GPS verwenden",
+  "my_location_gps_error": "Standort konnte nicht ermittelt werden. Bitte Koordinaten manuell eingeben.",
+  "my_location_lat": "Breitengrad",
+  "my_location_lng": "Längengrad"
 }

@@ -126,6 +126,9 @@ pub struct BinaryRenderConfig {
     // POI 数据（可选）
     #[serde(default)]
     pub pois: Option<Vec<f64>>, // [poi_count, x1, y1, x2, y2, ...]
+    // "My Location" marker (optional [lat, lon])
+    #[serde(default)]
+    pub my_location: Option<Vec<f64>>,
     // 文本显示开关
     #[serde(default = "types::default_true")]
     pub show_coords: bool,
@@ -345,6 +348,14 @@ fn render_map_binary_internal(
     time("render_map_bin: draw_gradients");
     renderer.draw_gradients();
     time_end("render_map_bin: draw_gradients");
+
+    // 投影并绘制 "My Location" 标记（在渐变之后，确保可见）
+    if let Some(ref loc) = config.my_location {
+        if loc.len() == 2 {
+            let (proj_x, proj_y) = projection::project_point(loc[1], loc[0]); // [lat, lon]
+            renderer.draw_my_location_marker(proj_x, proj_y);
+        }
+    }
 
     // 4. 绘制文字 (使用传入的字体数据)
     if let Err(e) = renderer.draw_text(

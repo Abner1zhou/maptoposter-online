@@ -164,5 +164,11 @@
   "support_buy_me_a_coffee_desc": "Кредитная карта / Apple Pay / Google Pay",
   "support_afdian": "Afdian (爱发电)",
   "support_afdian_desc": "WeChat / Alipay",
-  "star_hint": "Поставь звёздочку 🥰 до {target} рукой подать!"
+  "star_hint": "Поставь звёздочку 🥰 до {target} рукой подать!",
+  "my_location_title": "Моё местоположение",
+  "my_location_enable": "Показать моё местоположение",
+  "my_location_use_gps": "Использовать GPS",
+  "my_location_gps_error": "Не удалось определить местоположение. Введите координаты вручную.",
+  "my_location_lat": "Широта",
+  "my_location_lng": "Долгота"
 }

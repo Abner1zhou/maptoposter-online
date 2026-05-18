@@ -680,6 +680,80 @@ impl MapRenderer {
         );
     }
 
+    /// 绘制 "My Location" 标记（定位图钉）
+    /// 接受已投影的世界坐标 (x, y)，图钉尖端对齐该坐标
+    pub fn draw_my_location_marker(&mut self, x: f64, y: f64) {
+        let scale = self.render_scale as f32;
+        let (sx, sy) = self.world_to_screen((x, y));
+
+        let rw = self.render_width() as f32;
+        let rh = self.render_height() as f32;
+
+        if !(0.0..=rw).contains(&sx) || !(0.0..=rh).contains(&sy) {
+            return;
+        }
+
+        let text_color = parse_hex_color(&self.theme.text);
+
+        // 加载 PNG 图标并缩放到目标画布尺寸
+        let png_bytes = include_bytes!("../../src/public/location.png");
+        let img = image::ImageReader::new(std::io::Cursor::new(png_bytes))
+            .with_guessed_format()
+            .unwrap()
+            .decode()
+            .unwrap();
+        let rgba = img.to_rgba8();
+
+        let marker_size = (32.0 * scale) as u32;
+        let resized = image::imageops::resize(
+            &rgba,
+            marker_size,
+            marker_size,
+            image::imageops::FilterType::Lanczos3,
+        );
+
+        let canvas_width = self.pixmap.width();
+        let canvas_height = self.pixmap.height();
+        let canvas_data = self.pixmap.data_mut();
+        let marker_data = resized.as_raw();
+
+        // 图钉尖端对齐坐标点（marker 底部中心）
+        let start_x = sx as i32 - marker_size as i32 / 2;
+        let start_y = sy as i32 - marker_size as i32;
+
+        for py in 0..marker_size {
+            for px in 0..marker_size {
+                let src_idx = ((py * marker_size + px) * 4) as usize;
+                let marker_alpha = marker_data[src_idx + 3] as f32 / 255.0;
+
+                if marker_alpha < 0.01 {
+                    continue;
+                }
+
+                let dst_x = start_x + px as i32;
+                let dst_y = start_y + py as i32;
+
+                if dst_x < 0 || dst_x >= canvas_width as i32 || dst_y < 0 || dst_y >= canvas_height as i32 {
+                    continue;
+                }
+
+                let dst_idx = ((dst_y as u32 * canvas_width + dst_x as u32) * 4) as usize;
+                let inv = 1.0 - marker_alpha;
+
+                // Pixmap 数据格式为 BGRA（小端序）
+                let out_b = (text_color.blue() as f32 * marker_alpha + canvas_data[dst_idx] as f32 * inv) as u8;
+                let out_g = (text_color.green() as f32 * marker_alpha + canvas_data[dst_idx + 1] as f32 * inv) as u8;
+                let out_r = (text_color.red() as f32 * marker_alpha + canvas_data[dst_idx + 2] as f32 * inv) as u8;
+                let out_a = (marker_alpha * 255.0 + canvas_data[dst_idx + 3] as f32 * inv) as u8;
+
+                canvas_data[dst_idx] = out_b;
+                canvas_data[dst_idx + 1] = out_g;
+                canvas_data[dst_idx + 2] = out_r;
+                canvas_data[dst_idx + 3] = out_a;
+            }
+        }
+    }
+
     /// 绘制渐变（顶部和底部）
     pub fn draw_gradients(&mut self) {
         let gradient_color = parse_hex_color(&self.theme.gradient_color);
