@@ -923,7 +923,7 @@ impl MapRenderer {
         true
     }
 
-    /// 绘制文字（使用 fontdue）
+    /// 绘制文字（使用 fontdue），支持字体回退
     pub fn draw_text(
         &mut self,
         city: &str,
@@ -935,49 +935,37 @@ impl MapRenderer {
         show_country: bool,
         show_coords: bool,
     ) -> Result<(), String> {
-        let font = Font::from_bytes(font_data, FontSettings::default())
+        let primary_font = Font::from_bytes(font_data, FontSettings::default())
             .map_err(|e| format!("Failed to load font: {}", e))?;
+
+        // Load Roboto as fallback font
+        let roboto_bytes: &[u8] = include_bytes!("../fonts/Roboto-Regular.ttf");
+        let fallback_font = Font::from_bytes(roboto_bytes, FontSettings::default())
+            .map_err(|e| format!("Failed to load fallback font: {}", e))?;
 
         let text_color = parse_hex_color(&self.theme.text);
 
-        // 改进：限制缩放系数
-        // 取 Width/800 和 Height/800*1.1 中的较小值。
-        // *1.1 是为了让 A4 (0.7宽高比) 这种瘦长比例依然由宽度主导缩放。
-        // 但是对于 16:9 (1.77宽高比) 这种扁平比例，Height/800*1.1 (约0.6) 会小于 Width/800 (1.0)，
-        // 从而强制缩小字体，避免文字撑出高度。
-        // [超采样] 使用实际渲染像素尺寸计算 scale_factor，使字体在 2× 画布上保持正确视觉大小
         let width_scale = self.render_width() as f32 / 1200.0;
         let height_scale = (self.render_height() as f32 / 1200.0) * 1.1;
         let scale_factor = width_scale.min(height_scale);
 
-        // 计算画幅宽高比，用于动态调整 Bottom anchor
         let aspect_ratio = self.height as f32 / self.width as f32;
 
-        // 根据画幅比例计算 Bottom 的动态 anchor
-        // - 竖版 (aspect > 1): 文字视觉偏上，增加 anchor 使其靠下
-        // - 横版/方形 (aspect <= 1): 当前 0.85 效果理想
-        // 公式: 0.85 + (aspect_ratio - 1.0) * 0.1，上限 0.88
         let bottom_anchor = if aspect_ratio > 1.0 {
             (0.85 + (aspect_ratio - 1.0) * 0.1).min(0.88)
         } else {
             0.85
         };
 
-        // 计算基准锚点 Y 坐标 (屏幕绝对坐标)
         let base_y_px = match self.text_position {
             TextPosition::Top => self.render_height() as f32 * 0.10,
             TextPosition::Center => self.render_height() as f32 * 0.50,
             TextPosition::Bottom => self.render_height() as f32 * bottom_anchor,
         };
 
-        // 减去 padding_offset，与 TSX 端的 rootFontSize 逻辑一致
-        // 这样文字 baseline 不会紧贴容器底部，而是留出约一个 font-size 的边距
         let padding_offset: f32 = 16.0;
         let base_y_px = base_y_px - padding_offset;
 
-        // 定义相对偏移量 (基于 800px 宽度的标准像素值)
-        // 偏移池按从最显眼（顶部）到最不显眼（底部）排列
-        // 可见元素按 city → country → coords 优先级依次取偏移
         let offset_pool: [f32; 3] = [50.0 * scale_factor, 0.0, -40.0 * scale_factor];
         let mut visible_items: Vec<(&str, String, f32)> = Vec::new();
 
@@ -998,8 +986,9 @@ impl MapRenderer {
         }
 
         for (i, (_kind, text, font_size)) in visible_items.iter().enumerate() {
-            self.draw_text_centered(
-                &font,
+            self.draw_text_centered_with_fallback(
+                &primary_font,
+                &fallback_font,
                 text,
                 base_y_px + offset_pool[i],
                 *font_size,
@@ -1007,13 +996,11 @@ impl MapRenderer {
             );
         }
 
-        // 绘制装饰线
-        // self.draw_decoration_line(text_color, scale_factor, base_y_px + decor_offset);
-
-        // 绘制署名 (修正底部边距逻辑)
+        // 绘制署名
         let attr_text = "© OpenStreetMap contributors";
-        self.draw_text_bottom_right(
-            &font,
+        self.draw_text_bottom_right_with_fallback(
+            &primary_font,
+            &fallback_font,
             attr_text,
             10.0 * scale_factor,
             text_color,
@@ -1023,21 +1010,21 @@ impl MapRenderer {
         Ok(())
     }
 
-    /// 居中绘制文字
-    fn draw_text_centered(
+    /// 居中绘制文字（带字体回退）
+    fn draw_text_centered_with_fallback(
         &mut self,
-        font: &Font,
+        primary_font: &Font,
+        fallback_font: &Font,
         text: &str,
-        y_baseline: f32, // 改为绝对坐标
+        y_baseline: f32,
         size: f32,
         color: Color,
     ) {
-        let mut layout = Layout::new(CoordinateSystem::PositiveYDown);
-        layout.append(&[font], &TextStyle::new(text, size, 0));
-
         let y = y_baseline as i32;
 
-        // 计算文字宽度以居中
+        // Layout with primary font for positioning
+        let mut layout = Layout::new(CoordinateSystem::PositiveYDown);
+        layout.append(&[primary_font], &TextStyle::new(text, size, 0));
         let glyphs = layout.glyphs();
         if glyphs.is_empty() {
             return;
@@ -1048,14 +1035,17 @@ impl MapRenderer {
             .iter()
             .map(|g| g.x + g.width as f32)
             .fold(f32::NEG_INFINITY, f32::max);
-
         let text_width = max_x - min_x;
-        // [超采样] 使用实际画布宽度居中，保证文字在 2× 画布的视觉中心
-        // 使用 f32 计算偏移以保持亚像素精度
         let x_offset = (self.render_width() as f32 - text_width) / 2.0 - min_x;
 
-        for glyph in glyphs {
-            let (metrics, bitmap) = font.rasterize_config(glyph.key);
+        // Map glyphs back to characters for font fallback
+        let chars: Vec<char> = text.chars().collect();
+        for (i, glyph) in glyphs.iter().enumerate() {
+            let c = chars[i];
+            let has_in_primary = primary_font.lookup_glyph_index(c) != 0;
+            let font = if has_in_primary { primary_font } else { fallback_font };
+
+            let (metrics, bitmap) = font.rasterize(c, glyph.key.px);
             self.draw_glyph_bitmap(
                 &bitmap,
                 metrics.width,
@@ -1067,17 +1057,18 @@ impl MapRenderer {
         }
     }
 
-    /// 右下角绘制文字
-    fn draw_text_bottom_right(
+    /// 右下角绘制文字（带字体回退）
+    fn draw_text_bottom_right_with_fallback(
         &mut self,
-        font: &Font,
+        primary_font: &Font,
+        fallback_font: &Font,
         text: &str,
         size: f32,
         color: Color,
         scale_factor: f32,
     ) {
         let mut layout = Layout::new(CoordinateSystem::PositiveYDown);
-        layout.append(&[font], &TextStyle::new(text, size, 0));
+        layout.append(&[primary_font], &TextStyle::new(text, size, 0));
 
         let glyphs = layout.glyphs();
         if glyphs.is_empty() {
@@ -1095,13 +1086,15 @@ impl MapRenderer {
 
         // [超采样] 使用实际画布尺寸计算右下角位置，避免文字偏移到画布中央
         let x_offset = self.render_width() as i32 - max_x - margin as i32;
-        // y 是文本块的起始位置。为了让文本底部距离边缘 margin，
-        // y 应该是 height - margin - text_height
-        // 简单估算 text_height 为 size
         let y = self.render_height() as i32 - margin as i32 - size as i32;
 
-        for glyph in glyphs {
-            let (metrics, bitmap) = font.rasterize_config(glyph.key);
+        let chars: Vec<char> = text.chars().collect();
+        for (i, glyph) in glyphs.iter().enumerate() {
+            let c = chars[i];
+            let has_in_primary = primary_font.lookup_glyph_index(c) != 0;
+            let font = if has_in_primary { primary_font } else { fallback_font };
+
+            let (metrics, bitmap) = font.rasterize(c, glyph.key.px);
             self.draw_glyph_bitmap(
                 &bitmap,
                 metrics.width,
@@ -1480,6 +1473,211 @@ fn point_to_segment_dist_sq(p: (f32, f32), a: (f32, f32), b: (f32, f32)) -> f32 
     let (cx, cy) = (a.0 + t * dx, a.1 + t * dy);
     let (ex, ey) = (p.0 - cx, p.1 - cy);
     ex * ex + ey * ey
+}
+
+impl MapRenderer {
+    /// 绘制 GPX 轨迹线
+    /// track_bin: [point_count, lat1, lon1, lat2, lon2, ...] (世界坐标)
+    pub fn draw_track(&mut self, track_bin: &[f64]) {
+        if track_bin.len() < 3 {
+            return;
+        }
+        let point_count = track_bin[0] as usize;
+        if point_count < 2 || track_bin.len() < 1 + point_count * 2 {
+            return;
+        }
+
+        let scale = self.render_scale as f32;
+
+        // Project all track points to world coordinates then to screen
+        let mut screen_points: Vec<(f32, f32)> = Vec::with_capacity(point_count);
+        for i in 0..point_count {
+            // Format: [point_count, lat1, lon1, lat2, lon2, ...]
+            let lat = track_bin[1 + i * 2];
+            let lon = track_bin[1 + i * 2 + 1];
+            let (wx, wy) = crate::projection::project_point(lon, lat);
+            let (sx, sy) = self.world_to_screen((wx, wy));
+            screen_points.push((sx, sy));
+        }
+
+        // Build polyline path
+        let mut pb = PathBuilder::new();
+        pb.move_to(screen_points[0].0, screen_points[0].1);
+        for &(sx, sy) in &screen_points[1..] {
+            pb.line_to(sx, sy);
+        }
+        let Some(path) = pb.finish() else {
+            return;
+        };
+
+        let route_color = parse_hex_color(&self.theme.route);
+        let bg_color = parse_hex_color(&self.theme.bg);
+
+        // Draw casing (wider, background color)
+        let casing_width = 9.0 * scale;
+        let casing_stroke = Stroke {
+            width: casing_width,
+            line_cap: LineCap::Round,
+            line_join: LineJoin::Round,
+            ..Default::default()
+        };
+        let mut casing_paint = Paint::default();
+        casing_paint.set_color(bg_color);
+        casing_paint.anti_alias = true;
+
+        self.pixmap.stroke_path(
+            &path,
+            &casing_paint,
+            &casing_stroke,
+            Transform::identity(),
+            None,
+        );
+
+        // Draw main line (route color, ~1.5× motorway width)
+        let line_width = 5.0 * scale;
+        let line_stroke = Stroke {
+            width: line_width,
+            line_cap: LineCap::Round,
+            line_join: LineJoin::Round,
+            ..Default::default()
+        };
+
+        let mut line_paint = Paint::default();
+        line_paint.set_color(route_color);
+        line_paint.anti_alias = true;
+
+        self.pixmap.stroke_path(
+            &path,
+            &line_paint,
+            &line_stroke,
+            Transform::identity(),
+            None,
+        );
+    }
+
+    /// 绘制轨迹起点/终点标记
+    /// start_latlon: [lat, lon], end_latlon: [lat, lon]
+    pub fn draw_track_markers(
+        &mut self,
+        start_latlon: &[f64],
+        end_latlon: &[f64],
+    ) {
+        let scale = self.render_scale as f32;
+        let radius = 6.0 * scale;
+
+        let start_lat = start_latlon[0];
+        let start_lon = start_latlon[1];
+        let end_lat = end_latlon[0];
+        let end_lon = end_latlon[1];
+
+        let coincident = (start_lat - end_lat).abs() < 0.0001
+            && (start_lon - end_lon).abs() < 0.0001;
+
+        if coincident {
+            // Draw half-green / half-red circle
+            let (wx, wy) = crate::projection::project_point(start_lon, start_lat);
+            let (sx, sy) = self.world_to_screen((wx, wy));
+            self.draw_half_circle(sx, sy, radius, "22C55E", "EF4444");
+        } else {
+            // Draw green start circle
+            let (wx, wy) = crate::projection::project_point(start_lon, start_lat);
+            let (sx, sy) = self.world_to_screen((wx, wy));
+            self.draw_filled_circle(sx, sy, radius, "22C55E");
+
+            // Draw red end circle
+            let (wx, wy) = crate::projection::project_point(end_lon, end_lat);
+            let (sx, sy) = self.world_to_screen((wx, wy));
+            self.draw_filled_circle(sx, sy, radius, "EF4444");
+        }
+    }
+
+    fn draw_filled_circle(&mut self, cx: f32, cy: f32, radius: f32, color_hex: &str) {
+        let rw = self.render_width() as f32;
+        let rh = self.render_height() as f32;
+        if cx + radius < 0.0 || cx - radius > rw || cy + radius < 0.0 || cy - radius > rh {
+            return;
+        }
+
+        let color = parse_hex_color(color_hex);
+        if let Some(path) = PathBuilder::from_circle(cx, cy, radius) {
+            let mut paint = Paint::default();
+            paint.set_color(color);
+            paint.anti_alias = true;
+            self.pixmap.fill_path(
+                &path,
+                &paint,
+                FillRule::Winding,
+                Transform::identity(),
+                None,
+            );
+        }
+    }
+
+    fn draw_half_circle(
+        &mut self,
+        cx: f32,
+        cy: f32,
+        radius: f32,
+        left_color_hex: &str,
+        right_color_hex: &str,
+    ) {
+        let rw = self.render_width() as f32;
+        let rh = self.render_height() as f32;
+        if cx + radius < 0.0 || cx - radius > rw || cy + radius < 0.0 || cy - radius > rh {
+            return;
+        }
+
+        // Left half (green) - arc from 90° to 270° (π/2 to 3π/2)
+        let left_color = parse_hex_color(left_color_hex);
+        let mut pb = PathBuilder::new();
+        pb.move_to(cx, cy);
+        let steps = 32;
+        for i in 0..=steps {
+            let angle = std::f32::consts::FRAC_PI_2
+                + (std::f32::consts::PI * i as f32 / steps as f32);
+            let x = cx + radius * angle.cos();
+            let y = cy - radius * angle.sin();
+            pb.line_to(x, y);
+        }
+        pb.close();
+        if let Some(path) = pb.finish() {
+            let mut paint = Paint::default();
+            paint.set_color(left_color);
+            paint.anti_alias = true;
+            self.pixmap.fill_path(
+                &path,
+                &paint,
+                FillRule::Winding,
+                Transform::identity(),
+                None,
+            );
+        }
+
+        // Right half (red) - arc from -90° to 90° (-π/2 to π/2)
+        let right_color = parse_hex_color(right_color_hex);
+        let mut pb2 = PathBuilder::new();
+        pb2.move_to(cx, cy);
+        for i in 0..=steps {
+            let angle = -std::f32::consts::FRAC_PI_2
+                + (std::f32::consts::PI * i as f32 / steps as f32);
+            let x = cx + radius * angle.cos();
+            let y = cy - radius * angle.sin();
+            pb2.line_to(x, y);
+        }
+        pb2.close();
+        if let Some(path) = pb2.finish() {
+            let mut paint = Paint::default();
+            paint.set_color(right_color);
+            paint.anti_alias = true;
+            self.pixmap.fill_path(
+                &path,
+                &paint,
+                FillRule::Winding,
+                Transform::identity(),
+                None,
+            );
+        }
+    }
 }
 
 #[cfg(test)]

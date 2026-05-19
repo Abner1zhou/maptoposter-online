@@ -140,6 +140,13 @@ pub struct BinaryRenderConfig {
     // POI 显示开关
     #[serde(default)]
     pub show_pois: bool,
+    // GPX track data (optional)
+    #[serde(default)]
+    pub track: Option<Vec<f64>>, // [point_count, lat1, lon1, lat2, lon2, ...]
+    #[serde(default)]
+    pub track_start: Option<Vec<f64>>, // [lat, lon]
+    #[serde(default)]
+    pub track_end: Option<Vec<f64>>, // [lat, lon]
 }
 
 /// 主渲染函数 (二进制直读版本)
@@ -327,6 +334,22 @@ fn render_map_binary_internal(
     log(&format!("  Tertiary: {:.2}ms", total_timings[3]));
     log(&format!("  Residential: {:.2}ms", total_timings[4]));
     log(&format!("  Default: {:.2}ms", total_timings[5]));
+
+    // 绘制 GPX 轨迹（在道路之后、POI 之前）
+    if let Some(ref track_data) = config.track {
+        if !track_data.is_empty() && track_data.len() >= 5 {
+            time("render_map_bin: draw_track");
+            renderer.draw_track(track_data);
+
+            // 绘制起点/终点标记
+            if let (Some(start), Some(end)) = (&config.track_start, &config.track_end) {
+                if start.len() == 2 && end.len() == 2 {
+                    renderer.draw_track_markers(start, end);
+                }
+            }
+            time_end("render_map_bin: draw_track");
+        }
+    }
 
     // 投影并绘制 POI
     if config.show_pois {

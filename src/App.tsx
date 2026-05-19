@@ -11,6 +11,7 @@ import {
   Type,
   FileText,
   Scaling,
+  Route,
 } from "lucide-react";
 import { useLocationData } from "@/hooks/useLocationData";
 import { getUserGeolocation } from "@/services/ip-geolocation";
@@ -36,6 +37,7 @@ import { ThemeColors } from "./components/theme-colors";
 import { FontSettings } from "./components/font-settings";
 import { TextDisplaySettings } from "./components/text-display-settings";
 import { MyLocationSettings } from "./components/my-location-settings";
+import { TrackSettings } from "./components/track-settings";
 import { PosterSizeSelector } from "./components/poster-size-selector";
 import { MapPreview } from "./components/map-preview";
 import { GenerationModal } from "./components/generation-modal";
@@ -409,6 +411,10 @@ export default function MapPosterGenerator() {
       });
     }
   }, []);
+
+  // GPX track state
+  const [trackPoints, setTrackPoints] = useState<import("@/components/artistic-map").RoutePoint[] | null>(null);
+  const [trackFileName, setTrackFileName] = useState<string>("");
 
   // My Location marker state
   const [showMyLocation, setShowMyLocation] = useState(false);
@@ -1138,6 +1144,57 @@ export default function MapPosterGenerator() {
     }
   };
 
+  // GPX track import handler
+  const trackFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleGpxImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const { validateGpxFile, parseGpx, simplifyTrack, calculateTrackViewport } = await import("@/lib/gpx-parser");
+    const error = validateGpxFile(file);
+    if (error) {
+      alert(error);
+      return;
+    }
+
+    try {
+      const text = await file.text();
+      const points = parseGpx(text);
+      if (points.length < 2) {
+        alert("Track must have at least 2 points.");
+        return;
+      }
+      const simplified = simplifyTrack(points);
+      setTrackPoints(simplified);
+      setTrackFileName(file.name);
+
+      // Auto-fit viewport
+      const viewport = calculateTrackViewport(simplified);
+      setLocation({
+        lat: viewport.center.lat,
+        lng: viewport.center.lon,
+        city: location.city,
+        country: location.country,
+      });
+      setBaseRadius(viewport.radius);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to parse GPX file.");
+      setTrackPoints(null);
+      setTrackFileName("");
+    }
+
+    // Reset input so same file can be re-selected
+    if (trackFileInputRef.current) {
+      trackFileInputRef.current.value = "";
+    }
+  };
+
+  const handleClearTrack = () => {
+    setTrackPoints(null);
+    setTrackFileName("");
+  };
+
   // 字体内存缓存，避免重复 fetch
   const fontCacheRef = useRef<Map<string, { data: Uint8Array; fileName: string }>>(new Map());
 
@@ -1323,7 +1380,7 @@ export default function MapPosterGenerator() {
       const config = {
         center: { lat, lon: lng },
         radius: baseRadius,
-        theme: colors,
+        theme: { ...colors, route: colors.route || colors.poi_color || colors.text },
         width,
         height,
         display_city:
@@ -1341,6 +1398,13 @@ export default function MapPosterGenerator() {
         show_city: showCity,
         show_country: showCountry,
         show_pois: false,
+        ...(trackPoints && trackPoints.length >= 2
+          ? {
+              track: [trackPoints.length, ...trackPoints.flatMap((p) => [p.lat, p.lon])],
+              track_start: [trackPoints[0].lat, trackPoints[0].lon],
+              track_end: [trackPoints[trackPoints.length - 1].lat, trackPoints[trackPoints.length - 1].lon],
+            }
+          : {}),
       };
       logClientTiming("processing", "prepareRenderConfig", {
         total: performance.now() - configStart,
@@ -1367,7 +1431,31 @@ export default function MapPosterGenerator() {
       ];
 
       // 从缓存直接取字体数据，与预览状态解耦
-      const fontData = fontCacheRef.current.get(selectedPreset)?.data;
+      let fontData = fontCacheRef.current.get(selectedPreset)?.data;
+
+      // Auto-detect CJK text: if using default font and text contains CJK, load LXGW
+      if (!fontData) {
+        const textToCheck = (config.display_city || "") + (config.display_country || "");
+        const hasCJK = /[一-鿿぀-ゟ゠-ヿ가-힯]/.test(textToCheck);
+        if (hasCJK) {
+          if (!fontCacheRef.current.has("LXGW_Neo_ZhiSong")) {
+            try {
+              const response = await fetch("/font/LXGWNeoZhiSong.ttf");
+              if (response.ok) {
+                const arrayBuffer = await response.arrayBuffer();
+                fontCacheRef.current.set("LXGW_Neo_ZhiSong", {
+                  data: new Uint8Array(arrayBuffer),
+                  fileName: "LXGWNeoZhiSong.ttf",
+                });
+              }
+            } catch (e) {
+              console.warn("Failed to auto-load CJK font:", e);
+            }
+          }
+          fontData = fontCacheRef.current.get("LXGW_Neo_ZhiSong")?.data;
+        }
+      }
+
       if (fontData) {
         const fontCopy = new Uint8Array(fontData);
         renderOptions.custom_font = fontCopy;
@@ -1452,6 +1540,11 @@ export default function MapPosterGenerator() {
         id: "section-font-settings",
         icon: <FileText className="w-5 h-5" />,
         label: m.font_settings(),
+      },
+      {
+        id: "section-track-settings",
+        icon: <Route className="w-5 h-5" />,
+        label: "GPX Track",
       },
       { id: "section-poster-size", icon: <Scaling className="w-5 h-5" />, label: m.poster_size() },
     ],
@@ -1571,6 +1664,14 @@ export default function MapPosterGenerator() {
                   />
                 </div>
 
+                <div id="section-track-settings" ref={setSectionRef("section-track-settings")}>
+                  <TrackSettings
+                    trackFileName={trackFileName}
+                    onImport={handleGpxImport}
+                    onClear={handleClearTrack}
+                  />
+                </div>
+
               <MyLocationSettings
                 enabled={showMyLocation}
                 lat={myLocationLat}
@@ -1603,6 +1704,7 @@ export default function MapPosterGenerator() {
               showCountry={showCountry}
               previewRef={previewRef}
               myLocation={myLocationCoord}
+              trackPoints={trackPoints}
             />
           </div>
           <PosterGallery />

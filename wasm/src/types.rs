@@ -52,6 +52,8 @@ pub struct Theme {
     pub road_tertiary: String,
     pub road_residential: String,
     pub road_default: String,
+    #[serde(default = "default_route_color")]
+    pub route: String,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -281,6 +283,10 @@ pub fn default_frontend_scale() -> f32 {
 
 pub fn default_true() -> bool {
     true
+}
+
+pub fn default_route_color() -> String {
+    "#666666".to_string()
 }
 
 #[derive(Debug, Deserialize, Serialize)]

@@ -11,6 +11,7 @@ export interface MapColors {
   road_tertiary: string;
   road_residential: string;
   road_default: string;
+  route?: string;
 }
 
 export interface MapTheme {

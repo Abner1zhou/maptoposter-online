@@ -1,4 +1,4 @@
-import { MapPosterPreview, type PosterSize } from "@/components/artistic-map";
+import { MapPosterPreview, type PosterSize, type RoutePoint } from "@/components/artistic-map";
 import { type Location } from "@/lib/types";
 import { m } from "@/paraglide/messages";
 import { useMemo } from "react";
@@ -31,6 +31,7 @@ interface MapPreviewProps {
   showCountry: boolean;
   previewRef: React.RefObject<HTMLDivElement | null>;
   myLocation?: { lat: number; lng: number } | null;
+  trackPoints?: RoutePoint[] | null;
 }
 
 export function MapPreview({
@@ -46,6 +47,7 @@ export function MapPreview({
   showCountry,
   previewRef,
   myLocation,
+  trackPoints,
 }: MapPreviewProps) {
   const previewTheme = useMemo(
     () => ({
@@ -124,6 +126,8 @@ export function MapPreview({
             showCountry={showCountry}
             showCoords={showCoords}
             myLocation={myLocation}
+            showRoute={!!trackPoints && trackPoints.length >= 2}
+            routePoints={trackPoints ?? undefined}
           />
         </div>
       </div>
