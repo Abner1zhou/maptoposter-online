@@ -177,5 +177,7 @@
   "my_location_use_gps": "定位当前位置",
   "my_location_gps_error": "无法获取您的位置，请手动输入坐标。",
   "my_location_lat": "纬度",
-  "my_location_lng": "经度"
+  "my_location_lng": "经度",
+  "gpx_track_title": "GPX 轨迹",
+  "gpx_import_file": "导入 GPX 文件"
 }

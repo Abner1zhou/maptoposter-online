@@ -177,5 +177,7 @@
   "my_location_use_gps": "Использовать GPS",
   "my_location_gps_error": "Не удалось определить местоположение. Введите координаты вручную.",
   "my_location_lat": "Широта",
-  "my_location_lng": "Долгота"
+  "my_location_lng": "Долгота",
+  "gpx_track_title": "GPX-трек",
+  "gpx_import_file": "Импортировать GPX-файл"
 }

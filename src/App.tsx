@@ -38,6 +38,7 @@ import { FontSettings } from "./components/font-settings";
 import { TextDisplaySettings } from "./components/text-display-settings";
 import { MyLocationSettings } from "./components/my-location-settings";
 import { TrackSettings } from "./components/track-settings";
+import { validateGpxFile, parseGpx, simplifyTrack, calculateTrackViewport } from "@/lib/gpx-parser";
 import { PosterSizeSelector } from "./components/poster-size-selector";
 import { MapPreview } from "./components/map-preview";
 import { GenerationModal } from "./components/generation-modal";
@@ -1145,13 +1146,10 @@ export default function MapPosterGenerator() {
   };
 
   // GPX track import handler
-  const trackFileInputRef = useRef<HTMLInputElement>(null);
-
   const handleGpxImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const { validateGpxFile, parseGpx, simplifyTrack, calculateTrackViewport } = await import("@/lib/gpx-parser");
     const error = validateGpxFile(file);
     if (error) {
       alert(error);
@@ -1185,9 +1183,7 @@ export default function MapPosterGenerator() {
     }
 
     // Reset input so same file can be re-selected
-    if (trackFileInputRef.current) {
-      trackFileInputRef.current.value = "";
-    }
+    e.target.value = "";
   };
 
   const handleClearTrack = () => {

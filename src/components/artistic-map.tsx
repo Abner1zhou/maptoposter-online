@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { isValidHexColor } from "@/lib/utils";
+import { COINCIDENT_EPSILON } from "@/lib/gpx-parser";
 
 // ============================================
 // 类型定义
@@ -80,6 +81,53 @@ function getZoomFromRadius(
 }
 
 // ============================================
+// Shared route marker helpers
+// ============================================
+
+function buildMarkerGeoJSON(routePoints: RoutePoint[]) {
+  const start = routePoints[0];
+  const end = routePoints[routePoints.length - 1];
+  const coincident = Math.abs(start.lat - end.lat) < COINCIDENT_EPSILON && Math.abs(start.lon - end.lon) < COINCIDENT_EPSILON;
+  const point = (type: string, lat: number, lon: number) => ({
+    type: "Feature" as const,
+    properties: { type },
+    geometry: { type: "Point" as const, coordinates: [lon, lat] },
+  });
+  return {
+    type: "FeatureCollection" as const,
+    features: coincident
+      ? [point("coincident", start.lat, start.lon)]
+      : [point("start", start.lat, start.lon), point("end", end.lat, end.lon)],
+  };
+}
+
+function routeMarkerLayers(theme: ArtisticTheme) {
+  return [
+    {
+      id: "route-start-marker",
+      source: "route-markers-source",
+      type: "circle",
+      filter: ["==", ["get", "type"], "start"],
+      paint: { "circle-radius": 6, "circle-color": "#22C55E", "circle-stroke-width": 2, "circle-stroke-color": theme.bg },
+    },
+    {
+      id: "route-end-marker",
+      source: "route-markers-source",
+      type: "circle",
+      filter: ["==", ["get", "type"], "end"],
+      paint: { "circle-radius": 6, "circle-color": "#EF4444", "circle-stroke-width": 2, "circle-stroke-color": theme.bg },
+    },
+    {
+      id: "route-coincident-marker",
+      source: "route-markers-source",
+      type: "circle",
+      filter: ["==", ["get", "type"], "coincident"],
+      paint: { "circle-radius": 7, "circle-color": "#22C55E", "circle-stroke-width": 3, "circle-stroke-color": "#EF4444" },
+    },
+  ];
+}
+
+// ============================================
 // 样式生成器（仅用于初始化）
 // ============================================
 
@@ -114,41 +162,7 @@ function generateMapLibreStyle(
         ? {
             "route-source": { type: "geojson" as const, data: routeData },
             ...(routePoints && routePoints.length >= 2
-              ? {
-                  "route-markers-source": {
-                    type: "geojson" as const,
-                    data: (() => {
-                      const start = routePoints[0];
-                      const end = routePoints[routePoints.length - 1];
-                      const coincident = Math.abs(start.lat - end.lat) < 0.0001 && Math.abs(start.lon - end.lon) < 0.0001;
-                      if (coincident) {
-                        return {
-                          type: "FeatureCollection" as const,
-                          features: [{
-                            type: "Feature" as const,
-                            properties: { type: "coincident" },
-                            geometry: { type: "Point" as const, coordinates: [start.lon, start.lat] },
-                          }],
-                        };
-                      }
-                      return {
-                        type: "FeatureCollection" as const,
-                        features: [
-                          {
-                            type: "Feature" as const,
-                            properties: { type: "start" },
-                            geometry: { type: "Point" as const, coordinates: [start.lon, start.lat] },
-                          },
-                          {
-                            type: "Feature" as const,
-                            properties: { type: "end" },
-                            geometry: { type: "Point" as const, coordinates: [end.lon, end.lat] },
-                          },
-                        ],
-                      };
-                    })(),
-                  },
-                }
+              ? { "route-markers-source": { type: "geojson" as const, data: buildMarkerGeoJSON(routePoints) } }
               : {}),
           }
         : {}),
@@ -272,47 +286,7 @@ function generateMapLibreStyle(
               layout: { "line-cap": "round", "line-join": "round", visibility: "visible" },
               paint: { "line-color": theme.route, "line-width": 6 },
             },
-            // Start marker (green circle)
-            ...(routePoints && routePoints.length >= 2
-              ? [{
-                  id: "route-start-marker",
-                  source: "route-markers-source",
-                  type: "circle",
-                  filter: ["==", ["get", "type"], "start"],
-                  paint: {
-                    "circle-radius": 6,
-                    "circle-color": "#22C55E",
-                    "circle-stroke-width": 2,
-                    "circle-stroke-color": theme.bg,
-                  },
-                },
-                // End marker (red circle)
-                {
-                  id: "route-end-marker",
-                  source: "route-markers-source",
-                  type: "circle",
-                  filter: ["==", ["get", "type"], "end"],
-                  paint: {
-                    "circle-radius": 6,
-                    "circle-color": "#EF4444",
-                    "circle-stroke-width": 2,
-                    "circle-stroke-color": theme.bg,
-                  },
-                },
-                // Coincident start/end marker (green-red split shown as green with red ring)
-                {
-                  id: "route-coincident-marker",
-                  source: "route-markers-source",
-                  type: "circle",
-                  filter: ["==", ["get", "type"], "coincident"],
-                  paint: {
-                    "circle-radius": 7,
-                    "circle-color": "#22C55E",
-                    "circle-stroke-width": 3,
-                    "circle-stroke-color": "#EF4444",
-                  },
-                }]
-              : []),
+            ...(routePoints && routePoints.length >= 2 ? routeMarkerLayers(theme) : []),
           ] as maplibregl.LayerSpecification[])
         : []),
     ],
@@ -666,7 +640,6 @@ export function MapPosterPreview({
     const map = mapRef.current;
 
     if (!showRoute || !routePoints || routePoints.length < 2) {
-      // Remove route layers and source if no route
       ["route-start-marker", "route-end-marker", "route-coincident-marker", "route-line", "route-line-casing"].forEach((id) => {
         if (map.getLayer(id)) map.removeLayer(id);
       });
@@ -693,16 +666,7 @@ export function MapPosterPreview({
     }
 
     // Update or add marker source
-    const start = routePoints[0];
-    const end = routePoints[routePoints.length - 1];
-    const coincident = Math.abs(start.lat - end.lat) < 0.0001 && Math.abs(start.lon - end.lon) < 0.0001;
-    const markerData = coincident
-      ? { type: "FeatureCollection" as const, features: [{ type: "Feature" as const, properties: { type: "coincident" }, geometry: { type: "Point" as const, coordinates: [start.lon, start.lat] } }] }
-      : { type: "FeatureCollection" as const, features: [
-          { type: "Feature" as const, properties: { type: "start" }, geometry: { type: "Point" as const, coordinates: [start.lon, start.lat] } },
-          { type: "Feature" as const, properties: { type: "end" }, geometry: { type: "Point" as const, coordinates: [end.lon, end.lat] } },
-        ] };
-
+    const markerData = buildMarkerGeoJSON(routePoints);
     const existingMarkerSource = map.getSource("route-markers-source");
     if (existingMarkerSource) {
       (existingMarkerSource as maplibregl.GeoJSONSource).setData(markerData);
@@ -710,7 +674,7 @@ export function MapPosterPreview({
       map.addSource("route-markers-source", { type: "geojson", data: markerData });
     }
 
-    // Add route layers if they don't exist
+    // Add route line layers if they don't exist
     if (!map.getLayer("route-line-casing")) {
       map.addLayer({
         id: "route-line-casing",
@@ -731,35 +695,13 @@ export function MapPosterPreview({
     }
 
     // Add marker layers if they don't exist
-    if (!map.getLayer("route-start-marker")) {
-      map.addLayer({
-        id: "route-start-marker",
-        source: "route-markers-source",
-        type: "circle",
-        filter: ["==", ["get", "type"], "start"],
-        paint: { "circle-radius": 6, "circle-color": "#22C55E", "circle-stroke-width": 2, "circle-stroke-color": theme.bg },
-      });
-    }
-    if (!map.getLayer("route-end-marker")) {
-      map.addLayer({
-        id: "route-end-marker",
-        source: "route-markers-source",
-        type: "circle",
-        filter: ["==", ["get", "type"], "end"],
-        paint: { "circle-radius": 6, "circle-color": "#EF4444", "circle-stroke-width": 2, "circle-stroke-color": theme.bg },
-      });
-    }
-    if (!map.getLayer("route-coincident-marker")) {
-      map.addLayer({
-        id: "route-coincident-marker",
-        source: "route-markers-source",
-        type: "circle",
-        filter: ["==", ["get", "type"], "coincident"],
-        paint: { "circle-radius": 7, "circle-color": "#22C55E", "circle-stroke-width": 3, "circle-stroke-color": "#EF4444" },
-      });
+    for (const layer of routeMarkerLayers(theme)) {
+      if (!map.getLayer(layer.id)) {
+        map.addLayer(layer as maplibregl.LayerSpecification);
+      }
     }
 
-    // Sync colors
+    // Sync only route-related paint properties
     applyThemePaintProperties(map, theme);
   }, [showRoute, routePoints, isLoaded, theme]);
 

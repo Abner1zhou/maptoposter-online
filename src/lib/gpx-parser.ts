@@ -2,11 +2,31 @@ import type { RoutePoint } from "@/components/artistic-map";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const MAX_POINTS = 500;
-const COINCIDENT_EPSILON = 0.0001; // ~10 meters
+
+export const COINCIDENT_EPSILON = 0.0001; // ~10 meters
 
 export interface TrackViewport {
   center: { lat: number; lon: number };
   radius: number;
+}
+
+interface BBox {
+  minLat: number;
+  maxLat: number;
+  minLon: number;
+  maxLon: number;
+}
+
+function calculateBBox(points: RoutePoint[]): BBox {
+  let minLat = Infinity, maxLat = -Infinity;
+  let minLon = Infinity, maxLon = -Infinity;
+  for (const p of points) {
+    if (p.lat < minLat) minLat = p.lat;
+    if (p.lat > maxLat) maxLat = p.lat;
+    if (p.lon < minLon) minLon = p.lon;
+    if (p.lon > maxLon) maxLon = p.lon;
+  }
+  return { minLat, maxLat, minLon, maxLon };
 }
 
 export function validateGpxFile(file: File): string | null {
@@ -51,51 +71,48 @@ export function parseGpx(xmlString: string): RoutePoint[] {
 export function simplifyTrack(points: RoutePoint[]): RoutePoint[] {
   if (points.length <= MAX_POINTS) return points;
 
-  // Calculate epsilon from bounding box diagonal
-  let minLat = Infinity, maxLat = -Infinity;
-  let minLon = Infinity, maxLon = -Infinity;
-  for (const p of points) {
-    if (p.lat < minLat) minLat = p.lat;
-    if (p.lat > maxLat) maxLat = p.lat;
-    if (p.lon < minLon) minLon = p.lon;
-    if (p.lon > maxLon) maxLon = p.lon;
-  }
-  const diag = Math.sqrt((maxLat - minLat) ** 2 + (maxLon - minLon) ** 2);
-  // Start with a fraction of diagonal and bisect toward target count
-  let epsilon = diag * 0.005;
+  const bbox = calculateBBox(points);
+  const diag = Math.sqrt((bbox.maxLat - bbox.minLat) ** 2 + (bbox.maxLon - bbox.minLon) ** 2);
 
-  const simplified = douglasPeucker(points, epsilon);
+  const simplified = douglasPeucker(points, diag * 0.005);
   if (simplified.length <= MAX_POINTS) return simplified;
 
-  // If still too many, increase epsilon
-  epsilon = diag * 0.01;
-  return douglasPeucker(points, epsilon);
+  return douglasPeucker(points, diag * 0.01);
 }
 
 function douglasPeucker(points: RoutePoint[], epsilon: number): RoutePoint[] {
-  if (points.length <= 2) return points;
+  // Iterative implementation to avoid stack overflow on large tracks
+  const keep = new Uint8Array(points.length);
+  keep[0] = 1;
+  keep[points.length - 1] = 1;
 
-  let maxDist = 0;
-  let maxIdx = 0;
+  const stack: [number, number][] = [[0, points.length - 1]];
 
-  const first = points[0];
-  const last = points[points.length - 1];
+  while (stack.length > 0) {
+    const [start, end] = stack.pop()!;
+    let maxDist = 0;
+    let maxIdx = start;
 
-  for (let i = 1; i < points.length - 1; i++) {
-    const dist = perpendicularDist(points[i], first, last);
-    if (dist > maxDist) {
-      maxDist = dist;
-      maxIdx = i;
+    for (let i = start + 1; i < end; i++) {
+      const dist = perpendicularDist(points[i], points[start], points[end]);
+      if (dist > maxDist) {
+        maxDist = dist;
+        maxIdx = i;
+      }
+    }
+
+    if (maxDist > epsilon) {
+      keep[maxIdx] = 1;
+      if (maxIdx - start > 1) stack.push([start, maxIdx]);
+      if (end - maxIdx > 1) stack.push([maxIdx, end]);
     }
   }
 
-  if (maxDist > epsilon) {
-    const left = douglasPeucker(points.slice(0, maxIdx + 1), epsilon);
-    const right = douglasPeucker(points.slice(maxIdx), epsilon);
-    return [...left.slice(0, -1), ...right];
+  const result: RoutePoint[] = [];
+  for (let i = 0; i < points.length; i++) {
+    if (keep[i]) result.push(points[i]);
   }
-
-  return [first, last];
+  return result;
 }
 
 function perpendicularDist(point: RoutePoint, lineStart: RoutePoint, lineEnd: RoutePoint): number {
@@ -115,31 +132,20 @@ function perpendicularDist(point: RoutePoint, lineStart: RoutePoint, lineEnd: Ro
 }
 
 export function calculateTrackViewport(points: RoutePoint[]): TrackViewport {
-  let minLat = Infinity, maxLat = -Infinity;
-  let minLon = Infinity, maxLon = -Infinity;
-
-  for (const p of points) {
-    if (p.lat < minLat) minLat = p.lat;
-    if (p.lat > maxLat) maxLat = p.lat;
-    if (p.lon < minLon) minLon = p.lon;
-    if (p.lon > maxLon) maxLon = p.lon;
-  }
+  const { minLat, maxLat, minLon, maxLon } = calculateBBox(points);
 
   const centerLat = (minLat + maxLat) / 2;
   const centerLon = (minLon + maxLon) / 2;
 
-  // Convert lat/lon delta to approximate meters
   const latDeltaM = (maxLat - minLat) * 111_320;
   const lonDeltaM = (maxLon - minLon) * 111_320 * Math.cos((centerLat * Math.PI) / 180);
 
-  // Radius with 25% padding to ensure >= 10% margin on all sides
-  const radiusLat = (latDeltaM / 2) * 1.25;
-  const radiusLon = (lonDeltaM / 2) * 1.25;
-  const radius = Math.max(radiusLat, radiusLon);
+  // 25% padding on radius ensures >= 10% margin on all sides
+  const radius = Math.max(latDeltaM, lonDeltaM) / 2 * 1.25;
 
   return {
     center: { lat: centerLat, lon: centerLon },
-    radius: Math.max(radius, 500), // minimum 500m
+    radius: Math.max(radius, 500),
   };
 }
 

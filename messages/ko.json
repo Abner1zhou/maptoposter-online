@@ -177,5 +177,7 @@
   "my_location_use_gps": "GPS 사용",
   "my_location_gps_error": "위치를 가져올 수 없습니다. 수동으로 좌표를 입력해주세요.",
   "my_location_lat": "위도",
-  "my_location_lng": "경도"
+  "my_location_lng": "경도",
+  "gpx_track_title": "GPX 트랙",
+  "gpx_import_file": "GPX 파일 가져오기"
 }

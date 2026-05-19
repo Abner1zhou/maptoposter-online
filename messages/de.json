@@ -177,5 +177,7 @@
   "my_location_use_gps": "GPS verwenden",
   "my_location_gps_error": "Standort konnte nicht ermittelt werden. Bitte Koordinaten manuell eingeben.",
   "my_location_lat": "Breitengrad",
-  "my_location_lng": "Längengrad"
+  "my_location_lng": "Längengrad",
+  "gpx_track_title": "GPX-Track",
+  "gpx_import_file": "GPX-Datei importieren"
 }

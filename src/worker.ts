@@ -30,7 +30,7 @@ self.onmessage = async (event: MessageEvent) => {
       // POI 数据已经是最简形式 [poi_count, x1, y1, x2, y2, ...], 直接返回
       result = data as Float64Array;
     } else if (type === "render") {
-      const { roads_shards, water_bin, parks_bin, config_json, custom_font, track_bin } = data as any;
+      const { roads_shards, water_bin, parks_bin, config_json, custom_font } = data as any;
 
       let renderResult;
       if (custom_font && custom_font instanceof Uint8Array && custom_font.length > 0) {

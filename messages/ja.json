@@ -177,5 +177,7 @@
   "my_location_use_gps": "GPSで取得",
   "my_location_gps_error": "位置情報を取得できません。手動で座標を入力してください。",
   "my_location_lat": "緯度",
-  "my_location_lng": "経度"
+  "my_location_lng": "経度",
+  "gpx_track_title": "GPXトラック",
+  "gpx_import_file": "GPXファイルをインポート"
 }

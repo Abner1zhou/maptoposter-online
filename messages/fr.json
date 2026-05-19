@@ -177,5 +177,7 @@
   "my_location_use_gps": "Utiliser le GPS",
   "my_location_gps_error": "Impossible d’obtenir votre position. Veuillez entrer les coordonnées manuellement.",
   "my_location_lat": "Latitude",
-  "my_location_lng": "Longitude"
+  "my_location_lng": "Longitude",
+  "gpx_track_title": "Trace GPX",
+  "gpx_import_file": "Importer un fichier GPX"
 }

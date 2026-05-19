@@ -1,3 +1,4 @@
+import * as m from "@/paraglide/messages";
 import { Card } from "@/components/ui/card";
 import { Route, Upload, X } from "lucide-react";
 import { useRef } from "react";
@@ -15,7 +16,7 @@ export function TrackSettings({ trackFileName, onImport, onClear }: TrackSetting
     <Card className="p-4 bg-card border-border">
       <div className="flex items-center gap-2">
         <Route className="w-4 h-4 text-primary" />
-        <h2 className="text-lg text-foreground">GPX Track</h2>
+        <h2 className="text-lg text-foreground">{m.gpx_track_title()}</h2>
       </div>
 
       <div className="space-y-3 mt-3">
@@ -37,7 +38,7 @@ export function TrackSettings({ trackFileName, onImport, onClear }: TrackSetting
             className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
           >
             <Upload className="w-4 h-4" />
-            Import GPX File
+            {m.gpx_import_file()}
           </button>
         )}
 
