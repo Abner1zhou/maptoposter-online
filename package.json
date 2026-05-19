@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "paraglide-js compile --project ./project.inlang && tsc -b && vite build",
-    "build:wasm": "cd wasm && powershell.exe -ExecutionPolicy Bypass -File build.ps1",
+    "build:wasm": "cd wasm && bash build.sh",
     "format": "oxfmt src/",
     "format:check": "oxfmt --check src/",
     "lint": "oxlint src/",

@@ -60,21 +60,19 @@ export interface MapLocation {
 // ============================================
 // 根据 radius 计算合适的 zoom 级别
 // ============================================
+const POSTER_TRANSITION_MS = 300;
+const RESIZE_SETTLE_MS = POSTER_TRANSITION_MS + 100;
+
 function getZoomFromRadius(
-  center: { lat: number; lon: number },
   radiusMeters: number,
   mapWidthPx: number,
   mapHeightPx: number
 ): number {
-  // 用地图较小边来计算，保证 radius 完整显示
   const sizePx = Math.min(mapWidthPx, mapHeightPx);
-  // 赤道上1像素对应的米数公式：metersPerPx = 156543.03392 * cos(lat) / 2^zoom
-  // 反推 zoom：zoom = log2(156543.03392 * cos(lat) * sizePx / (2 * radiusMeters))
-  const zoom = Math.log2(
-    (156543.03392 * Math.cos((center.lat * Math.PI) / 180) * sizePx) / (2 * radiusMeters)
-  );
-  // 限制在合理范围内
-  return Math.max(10, Math.min(16, zoom - 0.3)); // 留一点 padding
+  // WASM calculate_bounds 使用 Web Mercator 世界坐标（x = R * lon_rad，与纬度无关）。
+  // MapLibre 的 metersPerPixel 已包含 cos(lat)，反推 zoom 时无需再乘。
+  const zoom = Math.log2((156543.03392 * sizePx) / (2 * radiusMeters));
+  return Math.max(10, Math.min(16, zoom - 0.3));
 }
 
 // ============================================
@@ -581,10 +579,9 @@ export function MapPosterPreview({
       if (initRadius) {
         const canvas = map.getCanvas();
         const targetZoom = getZoomFromRadius(
-          { lat: initLat, lon: initLon },
           initRadius,
-          canvas.width,
-          canvas.height
+          canvas.clientWidth,
+          canvas.clientHeight
         );
         map.jumpTo({ center: [initLon, initLat], zoom: targetZoom });
       }
@@ -702,26 +699,49 @@ export function MapPosterPreview({
     applyThemePaintProperties(map, theme);
   }, [showRoute, routePoints, isLoaded, theme]);
 
-  // 位置变化：统一用 flyTo，天然有动画，不走 fitBounds
+  // 统一处理位置 / 半径 / 海报尺寸变化
+  const prevRadiusRef = useRef(radius);
+  const prevLatLonRef = useRef({ lat: location.lat, lon: location.lon });
+
   useEffect(() => {
     if (!mapRef.current || !isLoaded) return;
 
+    const radiusChanged = prevRadiusRef.current !== radius;
+    const locationChanged =
+      prevLatLonRef.current.lat !== location.lat ||
+      prevLatLonRef.current.lon !== location.lon;
+    prevRadiusRef.current = radius;
+    prevLatLonRef.current = { lat: location.lat, lon: location.lon };
+
+    // Guard: avoid firing when neither radius nor location changed
+    // (e.g. isLoaded toggling on mount).
+    if (!radiusChanged && !locationChanged) return;
+
+    const canvas = mapRef.current.getCanvas();
     const targetZoom = radius
-      ? getZoomFromRadius(
-          location,
-          radius,
-          mapRef.current.getCanvas().width,
-          mapRef.current.getCanvas().height
-        )
+      ? getZoomFromRadius(radius, canvas.clientWidth, canvas.clientHeight)
       : zoom;
 
+    if (radiusChanged && !locationChanged) {
+      // Radius 变化（如海报尺寸切换导致 baseRadius 重新计算）：
+      // 延迟执行，等 CSS transition 和 MapLibre resize 稳定后再 jumpTo。
+      const timer = setTimeout(() => {
+        mapRef.current!.jumpTo({
+          center: [location.lon, location.lat],
+          zoom: targetZoom,
+        });
+      }, RESIZE_SETTLE_MS);
+      return () => clearTimeout(timer);
+    }
+
+    // Location 变化（用户选中新城市）或同时变化：立即 flyTo，带动画
     mapRef.current.flyTo({
       center: [location.lon, location.lat],
       zoom: targetZoom,
       essential: true,
       duration: 1200,
-      speed: 1.2, // 默认 1.2，越大越快
-      curve: 1.42, // 默认 1.42，控制飞行弧度
+      speed: 1.2,
+      curve: 1.42,
     });
   }, [location.lat, location.lon, zoom, radius, isLoaded]);
 

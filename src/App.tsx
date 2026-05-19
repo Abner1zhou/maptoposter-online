@@ -1171,14 +1171,14 @@ export default function MapPosterGenerator() {
       setTrackPoints(simplified);
       setTrackFileName(file.name);
 
-      // Auto-fit viewport
-      const viewport = calculateTrackViewport(simplified);
-      setLocation({
+      // Auto-fit viewport using current poster aspect ratio
+      const aspectRatio = selectedSize.width / selectedSize.height;
+      const viewport = calculateTrackViewport(simplified, aspectRatio);
+      setLocation((prev) => ({
+        ...prev,
         lat: viewport.center.lat,
         lng: viewport.center.lon,
-        city: location.city,
-        country: location.country,
-      });
+      }));
       setBaseRadius(viewport.radius);
     } catch (err) {
       setGpxError(err instanceof Error ? err.message : "Failed to parse GPX file.");
@@ -1194,6 +1194,18 @@ export default function MapPosterGenerator() {
     setTrackPoints(null);
     setTrackFileName("");
   };
+
+  // Dynamic baseRadius adjustment: when poster size changes with an active GPX track,
+  // recalculate the radius to ensure the track fits with proper padding.
+  useEffect(() => {
+    if (!trackPoints || trackPoints.length < 2) return;
+    const aspectRatio = selectedSize.width / selectedSize.height;
+    const viewport = calculateTrackViewport(trackPoints, aspectRatio);
+    // Guard: only update if radius actually changed to avoid unnecessary re-renders.
+    if (Math.abs(viewport.radius - baseRadius) > 0.1) {
+      setBaseRadius(viewport.radius);
+    }
+  }, [selectedSize.width, selectedSize.height, trackPoints, baseRadius]);
 
   // 字体内存缓存，避免重复 fetch
   const fontCacheRef = useRef<Map<string, { data: Uint8Array; fileName: string }>>(new Map());

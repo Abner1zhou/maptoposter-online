@@ -346,7 +346,7 @@ export function ThemeColors({
                 key={key}
                 colorKey={key}
                 label={label}
-                value={customColors[key]}
+                value={customColors[key] ?? ""}
                 onChange={handleColorChange}
               />
             ))}

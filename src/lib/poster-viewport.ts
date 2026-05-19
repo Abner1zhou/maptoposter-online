@@ -11,7 +11,7 @@ interface RenderViewportOptions extends BaseViewportOptions {
   aspectRatio: number;
 }
 
-const EARTH_METERS_PER_DEGREE_LAT = 111_320;
+export const EARTH_METERS_PER_DEGREE_LAT = 111_320;
 
 // Keep this list in sync with the poster sizes exposed in App.tsx.
 const SUPPORTED_POSTER_DIMENSIONS: Array<{ width: number; height: number }> = [

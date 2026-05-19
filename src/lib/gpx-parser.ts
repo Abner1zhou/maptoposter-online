@@ -1,3 +1,4 @@
+import { EARTH_METERS_PER_DEGREE_LAT } from "@/lib/poster-viewport";
 import type { RoutePoint } from "@/lib/types";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -131,17 +132,32 @@ function perpendicularDist(point: RoutePoint, lineStart: RoutePoint, lineEnd: Ro
   return Math.sqrt((point.lon - projLon) ** 2 + (point.lat - projLat) ** 2);
 }
 
-export function calculateTrackViewport(points: RoutePoint[]): TrackViewport {
+export function calculateTrackViewport(
+  points: RoutePoint[],
+  aspectRatio: number
+): TrackViewport {
   const { minLat, maxLat, minLon, maxLon } = calculateBBox(points);
 
   const centerLat = (minLat + maxLat) / 2;
   const centerLon = (minLon + maxLon) / 2;
 
-  const latDeltaM = (maxLat - minLat) * 111_320;
-  const lonDeltaM = (maxLon - minLon) * 111_320 * Math.cos((centerLat * Math.PI) / 180);
+  const latDeltaM = (maxLat - minLat) * EARTH_METERS_PER_DEGREE_LAT;
+  const lonDeltaM =
+    (maxLon - minLon) * EARTH_METERS_PER_DEGREE_LAT * Math.cos((centerLat * Math.PI) / 180);
 
-  // 25% padding on radius ensures >= 10% margin on all sides
-  const radius = Math.max(latDeltaM, lonDeltaM) / 2 * 1.25;
+  const latHalf = latDeltaM / 2;
+  const lonHalf = lonDeltaM / 2;
+  const padding = 1.25;
+  const safeAspect = Number.isFinite(aspectRatio) && aspectRatio > 0 ? aspectRatio : 1;
+
+  // WASM calculate_bounds semantics:
+  //   aspect >= 1 (landscape): half_x = radius * aspect, half_y = radius
+  //   aspect <  1 (portrait):  half_x = radius,         half_y = radius / aspect
+  // We need half_x >= lonHalf * padding and half_y >= latHalf * padding.
+  const radius =
+    safeAspect >= 1
+      ? Math.max(lonHalf * padding / safeAspect, latHalf * padding)
+      : Math.max(lonHalf * padding, latHalf * padding * safeAspect);
 
   return {
     center: { lat: centerLat, lon: centerLon },
