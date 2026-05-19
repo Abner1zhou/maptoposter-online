@@ -1561,6 +1561,8 @@ impl MapRenderer {
         &mut self,
         start_latlon: &[f64],
         end_latlon: &[f64],
+        start_color: &str,
+        end_color: &str,
     ) {
         let scale = self.render_scale as f32;
         let radius = 6.0 * scale;
@@ -1574,20 +1576,17 @@ impl MapRenderer {
             && (start_lon - end_lon).abs() < 0.0001;
 
         if coincident {
-            // Draw half-green / half-red circle
             let (wx, wy) = crate::projection::project_point(start_lon, start_lat);
             let (sx, sy) = self.world_to_screen((wx, wy));
-            self.draw_half_circle(sx, sy, radius, "22C55E", "EF4444");
+            self.draw_half_circle(sx, sy, radius, start_color, end_color);
         } else {
-            // Draw green start circle
             let (wx, wy) = crate::projection::project_point(start_lon, start_lat);
             let (sx, sy) = self.world_to_screen((wx, wy));
-            self.draw_filled_circle(sx, sy, radius, "22C55E");
+            self.draw_filled_circle(sx, sy, radius, start_color);
 
-            // Draw red end circle
             let (wx, wy) = crate::projection::project_point(end_lon, end_lat);
             let (sx, sy) = self.world_to_screen((wx, wy));
-            self.draw_filled_circle(sx, sy, radius, "EF4444");
+            self.draw_filled_circle(sx, sy, radius, end_color);
         }
     }
 

@@ -11,6 +11,8 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { isValidHexColor } from "@/lib/utils";
 import { COINCIDENT_EPSILON } from "@/lib/gpx-parser";
+import { MARKER_START_COLOR, MARKER_END_COLOR } from "@/lib/types";
+import type { RoutePoint } from "@/lib/types";
 
 // ============================================
 // 类型定义
@@ -51,11 +53,6 @@ export interface ArtisticTheme {
 }
 
 export interface MapLocation {
-  lat: number;
-  lon: number;
-}
-
-export interface RoutePoint {
   lat: number;
   lon: number;
 }
@@ -108,21 +105,21 @@ function routeMarkerLayers(theme: ArtisticTheme) {
       source: "route-markers-source",
       type: "circle",
       filter: ["==", ["get", "type"], "start"],
-      paint: { "circle-radius": 6, "circle-color": "#22C55E", "circle-stroke-width": 2, "circle-stroke-color": theme.bg },
+      paint: { "circle-radius": 6, "circle-color": MARKER_START_COLOR, "circle-stroke-width": 2, "circle-stroke-color": theme.bg },
     },
     {
       id: "route-end-marker",
       source: "route-markers-source",
       type: "circle",
       filter: ["==", ["get", "type"], "end"],
-      paint: { "circle-radius": 6, "circle-color": "#EF4444", "circle-stroke-width": 2, "circle-stroke-color": theme.bg },
+      paint: { "circle-radius": 6, "circle-color": MARKER_END_COLOR, "circle-stroke-width": 2, "circle-stroke-color": theme.bg },
     },
     {
       id: "route-coincident-marker",
       source: "route-markers-source",
       type: "circle",
       filter: ["==", ["get", "type"], "coincident"],
-      paint: { "circle-radius": 7, "circle-color": "#22C55E", "circle-stroke-width": 3, "circle-stroke-color": "#EF4444" },
+      paint: { "circle-radius": 7, "circle-color": MARKER_START_COLOR, "circle-stroke-width": 3, "circle-stroke-color": MARKER_END_COLOR },
     },
   ];
 }
@@ -277,14 +274,14 @@ function generateMapLibreStyle(
               source: "route-source",
               type: "line",
               layout: { "line-cap": "round", "line-join": "round", visibility: "visible" },
-              paint: { "line-color": theme.bg, "line-width": 12 },
+              paint: { "line-color": theme.bg, "line-width": 9 },
             },
             {
               id: "route-line",
               source: "route-source",
               type: "line",
               layout: { "line-cap": "round", "line-join": "round", visibility: "visible" },
-              paint: { "line-color": theme.route, "line-width": 6 },
+              paint: { "line-color": theme.route, "line-width": 5 },
             },
             ...(routePoints && routePoints.length >= 2 ? routeMarkerLayers(theme) : []),
           ] as maplibregl.LayerSpecification[])

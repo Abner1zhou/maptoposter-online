@@ -1,4 +1,4 @@
-import type { RoutePoint } from "@/components/artistic-map";
+import type { RoutePoint } from "@/lib/types";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const MAX_POINTS = 500;
@@ -147,8 +147,4 @@ export function calculateTrackViewport(points: RoutePoint[]): TrackViewport {
     center: { lat: centerLat, lon: centerLon },
     radius: Math.max(radius, 500),
   };
-}
-
-export function arePointsCoincident(a: RoutePoint, b: RoutePoint): boolean {
-  return Math.abs(a.lat - b.lat) < COINCIDENT_EPSILON && Math.abs(a.lon - b.lon) < COINCIDENT_EPSILON;
 }

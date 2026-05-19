@@ -1,5 +1,5 @@
-import { MapPosterPreview, type PosterSize, type RoutePoint } from "@/components/artistic-map";
-import { type Location } from "@/lib/types";
+import { MapPosterPreview, type PosterSize } from "@/components/artistic-map";
+import { type Location, type RoutePoint } from "@/lib/types";
 import { m } from "@/paraglide/messages";
 import { useMemo } from "react";
 
@@ -16,6 +16,7 @@ interface MapColors {
   road_tertiary: string;
   road_residential: string;
   road_default: string;
+  route?: string;
 }
 
 interface MapPreviewProps {
@@ -60,7 +61,7 @@ export function MapPreview({
       road_tertiary: colors.road_tertiary,
       road_residential: colors.road_residential,
       road_default: colors.road_default,
-      route: colors.poi_color || colors.text || colors.bg,
+      route: colors.route || colors.text,
       poi: colors.poi_color || colors.road_default,
     }),
     [colors]

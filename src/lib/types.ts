@@ -32,6 +32,14 @@ export interface Location {
 // Point = [lon, lat] in GeoJSON/Overpass/OSM convention
 export type Point = [number, number];
 
+export interface RoutePoint {
+  lat: number;
+  lon: number;
+}
+
+export const MARKER_START_COLOR = "#22C55E";
+export const MARKER_END_COLOR = "#EF4444";
+
 export interface PosterSize {
   id: string;
   name: string;

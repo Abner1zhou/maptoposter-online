@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useDeferredValue, useCallback, useMemo } from "react";
 import { type PosterSize } from "@/components/artistic-map";
+import type { RoutePoint } from "@/lib/types";
+import { MARKER_START_COLOR, MARKER_END_COLOR } from "@/lib/types";
 import {
   Square,
   Smartphone,
@@ -414,8 +416,9 @@ export default function MapPosterGenerator() {
   }, []);
 
   // GPX track state
-  const [trackPoints, setTrackPoints] = useState<import("@/components/artistic-map").RoutePoint[] | null>(null);
+  const [trackPoints, setTrackPoints] = useState<RoutePoint[] | null>(null);
   const [trackFileName, setTrackFileName] = useState<string>("");
+  const [gpxError, setGpxError] = useState<string | null>(null);
 
   // My Location marker state
   const [showMyLocation, setShowMyLocation] = useState(false);
@@ -1150,9 +1153,10 @@ export default function MapPosterGenerator() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setGpxError(null);
     const error = validateGpxFile(file);
     if (error) {
-      alert(error);
+      setGpxError(error);
       return;
     }
 
@@ -1160,7 +1164,7 @@ export default function MapPosterGenerator() {
       const text = await file.text();
       const points = parseGpx(text);
       if (points.length < 2) {
-        alert("Track must have at least 2 points.");
+        setGpxError("Track must have at least 2 points.");
         return;
       }
       const simplified = simplifyTrack(points);
@@ -1177,7 +1181,7 @@ export default function MapPosterGenerator() {
       });
       setBaseRadius(viewport.radius);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to parse GPX file.");
+      setGpxError(err instanceof Error ? err.message : "Failed to parse GPX file.");
       setTrackPoints(null);
       setTrackFileName("");
     }
@@ -1376,7 +1380,7 @@ export default function MapPosterGenerator() {
       const config = {
         center: { lat, lon: lng },
         radius: baseRadius,
-        theme: { ...colors, route: colors.route || colors.poi_color || colors.text },
+        theme: { ...colors, route: colors.route || colors.text },
         width,
         height,
         display_city:
@@ -1394,6 +1398,8 @@ export default function MapPosterGenerator() {
         show_city: showCity,
         show_country: showCountry,
         show_pois: false,
+        marker_start_color: MARKER_START_COLOR,
+        marker_end_color: MARKER_END_COLOR,
         ...(trackPoints && trackPoints.length >= 2
           ? {
               track: [trackPoints.length, ...trackPoints.flatMap((p) => [p.lat, p.lon])],
@@ -1663,8 +1669,10 @@ export default function MapPosterGenerator() {
                 <div id="section-track-settings" ref={setSectionRef("section-track-settings")}>
                   <TrackSettings
                     trackFileName={trackFileName}
+                    error={gpxError}
                     onImport={handleGpxImport}
                     onClear={handleClearTrack}
+                    onDismissError={() => setGpxError(null)}
                   />
                 </div>
 

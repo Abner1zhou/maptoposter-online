@@ -30,6 +30,13 @@ struct JsonRenderRequest {
 // 嵌入 Roboto 字体（需要将字体文件放到 fonts/ 目录）
 const ROBOTO_REGULAR: &[u8] = include_bytes!("../fonts/Roboto-Regular.ttf");
 
+fn default_marker_start_color() -> String {
+    "#22C55E".to_string()
+}
+fn default_marker_end_color() -> String {
+    "#EF4444".to_string()
+}
+
 /// 初始化 panic hook
 #[wasm_bindgen(start)]
 pub fn init_panic_hook() {
@@ -147,6 +154,10 @@ pub struct BinaryRenderConfig {
     pub track_start: Option<Vec<f64>>, // [lat, lon]
     #[serde(default)]
     pub track_end: Option<Vec<f64>>, // [lat, lon]
+    #[serde(default = "default_marker_start_color")]
+    pub marker_start_color: String,
+    #[serde(default = "default_marker_end_color")]
+    pub marker_end_color: String,
 }
 
 /// 主渲染函数 (二进制直读版本)
@@ -344,7 +355,7 @@ fn render_map_binary_internal(
             // 绘制起点/终点标记
             if let (Some(start), Some(end)) = (&config.track_start, &config.track_end) {
                 if start.len() == 2 && end.len() == 2 {
-                    renderer.draw_track_markers(start, end);
+                    renderer.draw_track_markers(start, end, &config.marker_start_color, &config.marker_end_color);
                 }
             }
             time_end("render_map_bin: draw_track");
