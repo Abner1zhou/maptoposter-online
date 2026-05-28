@@ -1197,15 +1197,17 @@ export default function MapPosterGenerator() {
 
   // Dynamic baseRadius adjustment: when poster size changes with an active GPX track,
   // recalculate the radius to ensure the track fits with proper padding.
+  const prevPosterSizeRef = useRef<{ w: number; h: number } | null>(null);
   useEffect(() => {
     if (!trackPoints || trackPoints.length < 2) return;
+    const prev = prevPosterSizeRef.current;
+    // Only recalculate when poster dimensions actually changed.
+    if (prev && prev.w === selectedSize.width && prev.h === selectedSize.height) return;
+    prevPosterSizeRef.current = { w: selectedSize.width, h: selectedSize.height };
     const aspectRatio = selectedSize.width / selectedSize.height;
     const viewport = calculateTrackViewport(trackPoints, aspectRatio);
-    // Guard: only update if radius actually changed to avoid unnecessary re-renders.
-    if (Math.abs(viewport.radius - baseRadius) > 0.1) {
-      setBaseRadius(viewport.radius);
-    }
-  }, [selectedSize.width, selectedSize.height, trackPoints, baseRadius]);
+    setBaseRadius(viewport.radius);
+  }, [selectedSize.width, selectedSize.height, trackPoints]);
 
   // 字体内存缓存，避免重复 fetch
   const fontCacheRef = useRef<Map<string, { data: Uint8Array; fileName: string }>>(new Map());

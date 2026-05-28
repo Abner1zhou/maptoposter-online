@@ -1,7 +1,7 @@
 import { EARTH_METERS_PER_DEGREE_LAT } from "@/lib/poster-viewport";
 import type { RoutePoint } from "@/lib/types";
 
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 const MAX_POINTS = 500;
 
 export const COINCIDENT_EPSILON = 0.0001; // ~10 meters
@@ -35,7 +35,7 @@ export function validateGpxFile(file: File): string | null {
     return "Invalid file format. Please upload a .gpx file.";
   }
   if (file.size > MAX_FILE_SIZE) {
-    return "File is too large. Maximum size is 5MB.";
+    return "File is too large. Maximum size is 20MB.";
   }
   return null;
 }
@@ -161,6 +161,6 @@ export function calculateTrackViewport(
 
   return {
     center: { lat: centerLat, lon: centerLon },
-    radius: Math.max(radius, 500),
+    radius: Math.max(Math.round(radius / 1000) * 1000, 1000),
   };
 }

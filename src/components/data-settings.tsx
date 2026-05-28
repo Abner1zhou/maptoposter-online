@@ -38,7 +38,7 @@ export function DataSettings({ baseRadius, onBaseRadiusChange }: DataSettingsPro
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {Array.from({ length: 18 }, (_, i) => 3000 + i * 1000).map((radius) => (
+              {Array.from({ length: 48 }, (_, i) => 3000 + i * 1000).map((radius) => (
                 <SelectItem key={radius} value={radius.toString()}>
                   {radius}m
                 </SelectItem>
